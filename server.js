@@ -1,51 +1,75 @@
 require("dotenv").config();
+const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
-const port = process.env.PORT || 3001;
-const path = require("path");
-const app = express();
 
+const app = express();
+const port = process.env.PORT || 3001;
+
+// Middleware
 app.use(express.json());
 app.use(cors());
 
+// MongoDB connection
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("Database is connected..."))
-  .catch((err) => console.log(err));
+  .catch((err) => console.error("MongoDB connection error:", err));
 
-//db schema
-const userSchema = mongoose.Schema({
-  name: String,
-  lastName: String,
+// DB schema
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  lastName: { type: String, required: true },
 });
 
-//db model
-const User = new mongoose.model("User", userSchema);
+// DB model
+const User = mongoose.model("User", userSchema);
 
-app.get("/get-users", (req, res) => {
-  User.find()
-    .then((users) => res.json(users))
-    .catch((err) => console.log(err));
+// Routes
+app.get("/get-users", async (req, res) => {
+  try {
+    const users = await User.find();
+    return res.json(users);
+  } catch (err) {
+    console.error("Error fetching users:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 });
 
-app.post("/create", (req, res) => {
-  //save to mongodb and send response
-  const newUser = new User({
-    name: req.body.name,
-    lastName: req.body.lastName,
+app.post("/create", async (req, res) => {
+  try {
+    const { name, lastName } = req.body;
+
+    if (!name || !lastName) {
+      return res.status(400).json({ error: "name and lastName are required" });
+    }
+
+    const newUser = new User({ name, lastName });
+    await newUser.save();
+
+    return res.json({ message: "User created successfully", user: newUser });
+  } catch (err) {
+    console.error("Error creating user:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Health check route
+app.get("/", (req, res) => {
+  res.send("API is running");
+});
+
+// Serve React build in production
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "client", "build")));
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "client", "build", "index.html"));
   });
+}
 
-  newUser
-    .save()
-    .then((user) => res.json(user))
-    .catch((err) => console.log(err));
-});
-
-app.use(express.static("./client/build"));
-app.get("*", (req, res) => {
-  res.sendFile(path.resolve(__dirname, "client", "build", "index.html"));
-});
+// Start server
 app.listen(port, () => {
-  console.log(`Server is running on post ${port}`);
+  console.log(`Server is running on port: ${port}`);
 });
