@@ -17,7 +17,7 @@ function App() {
   }, []);
 
   return (
-    <div className="App">
+    <div className="App text-3xl font-bold underline">
       <h1>READ</h1>
 
       {users &&
